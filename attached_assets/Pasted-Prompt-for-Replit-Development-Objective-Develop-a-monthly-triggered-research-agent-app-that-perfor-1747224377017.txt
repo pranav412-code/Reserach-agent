@@ -1,0 +1,64 @@
+Prompt for Replit Development:
+Objective: Develop a monthly-triggered research agent app that performs market research in the manufacturing/IIoT sector, analyzes current industry trends, problems, and solutions, and generates a comprehensive report. The app will utilize Gemini (LLM) and LangChain to orchestrate the data collection and analysis workflow.
+
+Components:
+LLM: Gemini (Google) for text generation and analysis.
+
+Framework: LangChain for tool orchestration and agent management.
+
+Tools:
+
+Web Search Tool: Use Tavily or another search engine API for gathering relevant articles, blogs, and industry news.
+
+Web Scraping Tool: Use BeautifulSoup or Scrapy for extracting useful data from industry-specific websites.
+
+Social Media Tool: Use LinkedIn APIs for extracting relevant posts and articles (public pages) in the manufacturing/IIoT domain.
+
+Database: Use SQLite or a simple NoSQL solution for storing collected data for report generation.
+
+Workflow:
+Manual Trigger: The agent is triggered manually once every month to start data collection.
+
+Data Collection:
+
+Perform web searches using the search tool (e.g., Tavily) to find articles, reports, and blogs about industry trends and challenges.
+
+Use scraping to collect structured data from relevant websites.
+
+Extract social media insights from LinkedIn based on the latest professional discussions related to manufacturing/IIoT.
+
+Data Processing:
+
+Use LangChain to clean, structure, and organize the collected data.
+
+Analysis:
+
+Pass the structured data to Gemini for trend identification, challenge analysis, and insight generation.
+
+Identify how SenseLive’s solutions can solve the identified challenges.
+
+Report Generation:
+
+Generate a detailed, comprehensive report, including:
+
+Industry trends and problems
+
+SenseLive’s solutions
+
+Content for future email campaigns and newsletters.
+
+Data Storage:
+
+Store the generated reports in a local database for future reference and use by other agents.
+
+Development Notes:
+Focus on building the web scraping, search, and LinkedIn tools first before integrating Gemini and LangChain for report generation.
+
+Make sure the agent is flexible for future enhancements such as automatic triggers and real-time data updates.
+
+Ensure the LLM (Gemini) is trained or properly fine-tuned to generate industry-relevant insights from the collected data.
+
+Deliverables:
+A functional app that can collect data, process it, and generate a comprehensive research report on a monthly basis.
+
+Documentation on how to use the app, including setup, manual trigger, and data collection process.
