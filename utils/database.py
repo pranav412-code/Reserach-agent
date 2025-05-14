@@ -1,35 +1,48 @@
-import sqlite3
 import json
 import os
 import datetime
+import streamlit as st
 from typing import List, Dict, Any, Optional
+from sqlalchemy import create_engine, Column, Integer, String, Text, TIMESTAMP, Table, MetaData
+from sqlalchemy.sql import text
+from sqlalchemy.exc import SQLAlchemyError
 
-# Database file path
-DB_FILE = "research_reports.db"
+# Get database URL from environment variable
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Create SQLAlchemy engine
+engine = create_engine(DATABASE_URL) if DATABASE_URL else None
+metadata = MetaData()
+
+# Define reports table
+reports = Table(
+    'reports', 
+    metadata,
+    Column('id', Integer, primary_key=True),
+    Column('date', String),
+    Column('title', String),
+    Column('summary', Text),
+    Column('trends', Text),
+    Column('challenges', Text),
+    Column('solutions', Text),
+    Column('sources', Text),
+    Column('raw_data', Text),
+    Column('created_at', TIMESTAMP, server_default=text('CURRENT_TIMESTAMP'))
+)
 
 def init_db():
     """Initialize the database with necessary tables"""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
+    if not DATABASE_URL:
+        st.error("Database URL not found in environment variables")
+        return False
     
-    # Create reports table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS reports (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        date TEXT,
-        title TEXT,
-        summary TEXT,
-        trends TEXT,
-        challenges TEXT,
-        solutions TEXT,
-        sources TEXT,
-        raw_data TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    ''')
-    
-    conn.commit()
-    conn.close()
+    try:
+        # Create tables
+        metadata.create_all(engine)
+        return True
+    except SQLAlchemyError as e:
+        st.error(f"Database initialization error: {str(e)}")
+        return False
 
 def save_report(report: Dict[str, Any]) -> int:
     """
@@ -41,35 +54,46 @@ def save_report(report: Dict[str, Any]) -> int:
     Returns:
         The ID of the newly inserted report
     """
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
+    if not engine:
+        st.error("Database not initialized")
+        return -1
     
-    # Prepare data for insertion
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
-    
-    # Convert sources and raw_data to JSON strings
-    sources_json = json.dumps(report.get("sources", []))
-    raw_data_json = json.dumps(report.get("raw_data", {}))
-    
-    cursor.execute('''
-    INSERT INTO reports (date, title, summary, trends, challenges, solutions, sources, raw_data)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        today,
-        report.get("title", f"Manufacturing/IIoT Research Report - {today}"),
-        report.get("summary", ""),
-        report.get("trends", ""),
-        report.get("challenges", ""),
-        report.get("solutions", ""),
-        sources_json,
-        raw_data_json
-    ))
-    
-    report_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    
-    return report_id
+    try:
+        # Prepare data for insertion
+        today = datetime.datetime.now().strftime("%Y-%m-%d")
+        
+        # Convert sources and raw_data to JSON strings
+        sources_json = json.dumps(report.get("sources", []))
+        raw_data_json = json.dumps(report.get("raw_data", {}))
+        
+        # Create connection
+        conn = engine.connect()
+        
+        # Insert data
+        result = conn.execute(
+            reports.insert().values(
+                date=today,
+                title=report.get("title", f"Manufacturing/IIoT Research Report - {today}"),
+                summary=report.get("summary", ""),
+                trends=report.get("trends", ""),
+                challenges=report.get("challenges", ""),
+                solutions=report.get("solutions", ""),
+                sources=sources_json,
+                raw_data=raw_data_json
+            )
+        )
+        
+        # Get the generated ID
+        report_id = result.inserted_primary_key[0]
+        
+        # Close connection
+        conn.close()
+        
+        return report_id
+        
+    except SQLAlchemyError as e:
+        st.error(f"Error saving report to database: {str(e)}")
+        return -1
 
 def get_reports(limit: Optional[int] = None) -> List[Dict[str, Any]]:
     """
@@ -81,37 +105,56 @@ def get_reports(limit: Optional[int] = None) -> List[Dict[str, Any]]:
     Returns:
         List of report dictionaries
     """
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    if not engine:
+        st.error("Database not initialized")
+        return []
     
-    if limit:
-        cursor.execute('SELECT * FROM reports ORDER BY date DESC LIMIT ?', (limit,))
-    else:
-        cursor.execute('SELECT * FROM reports ORDER BY date DESC')
-    
-    rows = cursor.fetchall()
-    
-    reports = []
-    for row in rows:
-        # Convert row to dictionary
-        report_dict = dict(row)
+    try:
+        # Create connection
+        conn = engine.connect()
         
-        # Parse JSON fields
-        try:
-            report_dict["sources"] = json.loads(report_dict["sources"])
-        except (json.JSONDecodeError, TypeError):
-            report_dict["sources"] = []
+        # Execute query
+        query = "SELECT * FROM reports ORDER BY date DESC"
+        if limit:
+            query += f" LIMIT {limit}"
         
-        try:
-            report_dict["raw_data"] = json.loads(report_dict["raw_data"])
-        except (json.JSONDecodeError, TypeError):
-            report_dict["raw_data"] = {}
+        result = conn.execute(text(query))
         
-        reports.append(report_dict)
-    
-    conn.close()
-    return reports
+        # Process results
+        reports_list = []
+        for row in result:
+            report_dict = {
+                "id": row.id,
+                "date": row.date,
+                "title": row.title,
+                "summary": row.summary,
+                "trends": row.trends,
+                "challenges": row.challenges,
+                "solutions": row.solutions,
+                "created_at": row.created_at
+            }
+            
+            # Parse JSON fields
+            try:
+                report_dict["sources"] = json.loads(row.sources)
+            except (json.JSONDecodeError, TypeError):
+                report_dict["sources"] = []
+            
+            try:
+                report_dict["raw_data"] = json.loads(row.raw_data)
+            except (json.JSONDecodeError, TypeError):
+                report_dict["raw_data"] = {}
+            
+            reports_list.append(report_dict)
+        
+        # Close connection
+        conn.close()
+        
+        return reports_list
+        
+    except SQLAlchemyError as e:
+        st.error(f"Error retrieving reports from database: {str(e)}")
+        return []
 
 def get_report_by_id(report_id: int) -> Optional[Dict[str, Any]]:
     """
@@ -123,30 +166,50 @@ def get_report_by_id(report_id: int) -> Optional[Dict[str, Any]]:
     Returns:
         Report dictionary or None if not found
     """
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT * FROM reports WHERE id = ?', (report_id,))
-    row = cursor.fetchone()
-    
-    if not row:
-        conn.close()
+    if not engine:
+        st.error("Database not initialized")
         return None
     
-    # Convert row to dictionary
-    report_dict = dict(row)
-    
-    # Parse JSON fields
     try:
-        report_dict["sources"] = json.loads(report_dict["sources"])
-    except (json.JSONDecodeError, TypeError):
-        report_dict["sources"] = []
-    
-    try:
-        report_dict["raw_data"] = json.loads(report_dict["raw_data"])
-    except (json.JSONDecodeError, TypeError):
-        report_dict["raw_data"] = {}
-    
-    conn.close()
-    return report_dict
+        # Create connection
+        conn = engine.connect()
+        
+        # Execute query
+        result = conn.execute(text("SELECT * FROM reports WHERE id = :id"), {"id": report_id})
+        row = result.fetchone()
+        
+        if not row:
+            conn.close()
+            return None
+        
+        # Convert row to dictionary
+        report_dict = {
+            "id": row.id,
+            "date": row.date,
+            "title": row.title,
+            "summary": row.summary,
+            "trends": row.trends,
+            "challenges": row.challenges,
+            "solutions": row.solutions,
+            "created_at": row.created_at
+        }
+        
+        # Parse JSON fields
+        try:
+            report_dict["sources"] = json.loads(row.sources)
+        except (json.JSONDecodeError, TypeError):
+            report_dict["sources"] = []
+        
+        try:
+            report_dict["raw_data"] = json.loads(row.raw_data)
+        except (json.JSONDecodeError, TypeError):
+            report_dict["raw_data"] = {}
+        
+        # Close connection
+        conn.close()
+        
+        return report_dict
+        
+    except SQLAlchemyError as e:
+        st.error(f"Error retrieving report from database: {str(e)}")
+        return None

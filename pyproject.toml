@@ -8,7 +8,9 @@ dependencies = [
     "google-generativeai>=0.8.5",
     "langchain>=0.3.25",
     "langchain-google-genai>=2.0.10",
+    "psycopg2-binary>=2.9.10",
     "requests>=2.32.3",
+    "sqlalchemy>=2.0.40",
     "streamlit>=1.45.1",
     "trafilatura>=2.0.0",
 ]
