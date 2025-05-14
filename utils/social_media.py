@@ -90,6 +90,7 @@ def collect_linkedin_alternative(keywords: str) -> List[Dict[str, Any]]:
     
     # List of manufacturing/IIoT companies and hashtags to check
     companies = [
+        {"name": "SenseLive", "url": "https://www.linkedin.com/company/senselive/posts/"},
         {"name": "Siemens Digital Industries", "url": "https://www.linkedin.com/company/siemens-digital-industries-software/posts/"},
         {"name": "Rockwell Automation", "url": "https://www.linkedin.com/company/rockwell-automation/posts/"},
         {"name": "GE Digital", "url": "https://www.linkedin.com/company/ge-digital/posts/"},

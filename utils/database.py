@@ -10,30 +10,46 @@ from sqlalchemy.exc import SQLAlchemyError
 # Get database URL from environment variable
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Create SQLAlchemy engine
-engine = create_engine(DATABASE_URL) if DATABASE_URL else None
-metadata = MetaData()
+# Initialize database objects
+engine = None
+metadata = None
+reports = None
 
-# Define reports table
-reports = Table(
-    'reports', 
-    metadata,
-    Column('id', Integer, primary_key=True),
-    Column('date', String),
-    Column('title', String),
-    Column('summary', Text),
-    Column('trends', Text),
-    Column('challenges', Text),
-    Column('solutions', Text),
-    Column('sources', Text),
-    Column('raw_data', Text),
-    Column('created_at', TIMESTAMP, server_default=text('CURRENT_TIMESTAMP'))
-)
+if DATABASE_URL:
+    try:
+        engine = create_engine(DATABASE_URL)
+        metadata = MetaData()
+    except Exception as e:
+        st.error(f"Error initializing database engine: {str(e)}")
+        
+# Only define reports table if metadata is available
+if metadata is not None:
+    try:
+        reports = Table(
+            'reports', 
+            metadata,
+            Column('id', Integer, primary_key=True),
+            Column('date', String),
+            Column('title', String),
+            Column('summary', Text),
+            Column('trends', Text),
+            Column('challenges', Text),
+            Column('solutions', Text),
+            Column('sources', Text),
+            Column('raw_data', Text),
+            Column('created_at', TIMESTAMP, server_default=text('CURRENT_TIMESTAMP'))
+        )
+    except Exception as e:
+        st.error(f"Error defining database tables: {str(e)}")
 
-def init_db():
+def init_db() -> bool:
     """Initialize the database with necessary tables"""
     if not DATABASE_URL:
         st.error("Database URL not found in environment variables")
+        return False
+    
+    if engine is None or metadata is None or reports is None:
+        st.error("Database objects not properly initialized")
         return False
     
     try:
@@ -54,8 +70,8 @@ def save_report(report: Dict[str, Any]) -> int:
     Returns:
         The ID of the newly inserted report
     """
-    if not engine:
-        st.error("Database not initialized")
+    if engine is None or reports is None:
+        st.error("Database not properly initialized")
         return -1
     
     try:
@@ -84,8 +100,11 @@ def save_report(report: Dict[str, Any]) -> int:
         )
         
         # Get the generated ID
-        report_id = result.inserted_primary_key[0]
-        
+        if result.inserted_primary_key is not None:
+            report_id = result.inserted_primary_key[0]
+        else:
+            report_id = -1
+            
         # Close connection
         conn.close()
         
@@ -105,8 +124,8 @@ def get_reports(limit: Optional[int] = None) -> List[Dict[str, Any]]:
     Returns:
         List of report dictionaries
     """
-    if not engine:
-        st.error("Database not initialized")
+    if engine is None:
+        st.error("Database not properly initialized")
         return []
     
     try:
@@ -166,8 +185,8 @@ def get_report_by_id(report_id: int) -> Optional[Dict[str, Any]]:
     Returns:
         Report dictionary or None if not found
     """
-    if not engine:
-        st.error("Database not initialized")
+    if engine is None:
+        st.error("Database not properly initialized")
         return None
     
     try:

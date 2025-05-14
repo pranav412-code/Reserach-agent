@@ -20,9 +20,16 @@ init_db()
 def main():
     st.title("Manufacturing/IIoT Research Agent")
     
+    # Initialize session state for navigation
+    if "page" not in st.session_state:
+        st.session_state["page"] = "Dashboard"
+    
     # Sidebar for navigation
     st.sidebar.title("Navigation")
-    page = st.sidebar.radio("Go to", ["Dashboard", "Reports", "Run Research"])
+    page = st.sidebar.radio("Go to", ["Dashboard", "Reports", "Run Research"], index=["Dashboard", "Reports", "Run Research"].index(st.session_state["page"]))
+    
+    # Update session state
+    st.session_state["page"] = page
     
     if page == "Dashboard":
         display_dashboard()
@@ -53,8 +60,12 @@ def display_dashboard():
     col1, col2 = st.columns(2)
     with col1:
         if st.button("View Latest Report", key="view_latest"):
-            st.session_state["selected_report"] = 0 if reports else None
-            st.rerun()
+            if reports:
+                st.session_state["page"] = "Reports"
+                st.session_state["selected_report"] = 0
+                st.rerun()
+            else:
+                st.warning("No reports available yet. Please run your first research.")
     with col2:
         if st.button("Run New Research", key="run_new"):
             st.session_state["page"] = "Run Research"
@@ -116,6 +127,34 @@ def display_reports():
         with st.expander("Sources"):
             for source in report["sources"]:
                 st.write(f"- [{source['title']}]({source['url']})")
+        
+        # Add download button for the report
+        report_md = f"""# {report["title"]}
+Date: {report["date"]}
+
+## Executive Summary
+{report["summary"]}
+
+## Industry Trends
+{report["trends"]}
+
+## Challenges
+{report["challenges"]}
+
+## Solutions
+{report["solutions"]}
+
+## Sources
+"""
+        for source in report["sources"]:
+            report_md += f"- [{source['title']}]({source['url']})\n"
+            
+        st.download_button(
+            label="Download Report as Markdown",
+            data=report_md,
+            file_name=f"research_report_{report['date']}.md",
+            mime="text/markdown"
+        )
 
 def run_research():
     st.header("Run New Research")
